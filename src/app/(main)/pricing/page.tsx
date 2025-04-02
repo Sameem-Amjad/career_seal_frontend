@@ -6,12 +6,6 @@ import TrialSection from "./components/TrialSection";
 
 
 function Pricing() {
-
-  const handleFreeTrial = () =>{
-    
-  }
-
-
   return (
     <div className="min-h-screen w-full mx-auto font-poppins bg-gradient-top-right pt-24">
       <div className="max-w-screen-md mx-auto flex flex-col text-black items-center p-4 space-y-4">
