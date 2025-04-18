@@ -10,8 +10,8 @@ import {
 import axios from "axios";
 import Cookies from "js-cookie";
 
-const API_BASE_URL = "https://careerseal-server.onrender.com";
-// const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000';
+// const API_BASE_URL = "https://careerseal-server.onrender.com";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000';
 
 export const login = async (credentials: {
   email: string;

@@ -43,6 +43,8 @@ const Navbar = () => {
     setIsPopupOpen(false);
   };
 
+  console.log("full user profile data is : ", data);
+
   return (
     <>
       <nav className="fixed top-0 w-full bg-transparent backdrop-blur-md p-4 lg:px-24 font-poppins border-b-2 border-opacity-25 border-custom-blue z-50">
@@ -60,7 +62,7 @@ const Navbar = () => {
                 stroke="currentColor"
                 className="w-6 h-6"
               >
-                <path
+                <path 
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   d="M3.75 5.25h16.5m-16.5 6h16.5m-16.5 6h16.5"
@@ -85,7 +87,9 @@ const Navbar = () => {
           <div className="flex flex-1 items-center justify-end space-x-2">
             {loggedIn ? (
               <>
-                <p className="text-sm font-semibold">{data?.user.username}</p>
+                <p className="text-sm font-semibold text-black">
+                  {data?.user.username}
+                </p>
                 <div className="relative">
                   <Image
                     src={data?.user.image || Images.avatarcover}

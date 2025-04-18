@@ -1,9 +1,10 @@
 "use client";
-import { getToken } from "@/config/toke";
-import useGetUserDetails from "@/hooks/auth/useGetUserDetails";
-import axios from "axios";
-import { useRouter } from "next/navigation";
 import React, { useState } from "react";
+import { getToken } from "@/config/toke";
+import { useRouter } from "next/navigation";
+
+import axios from "axios";
+import useGetUserDetails from "@/hooks/auth/useGetUserDetails";
 
 const TrialSection = () => {
   const router = useRouter();
