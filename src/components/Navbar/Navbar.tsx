@@ -43,7 +43,6 @@ const Navbar = () => {
     setIsPopupOpen(false);
   };
 
-  console.log("full user profile data is : ", data);
 
   return (
     <>

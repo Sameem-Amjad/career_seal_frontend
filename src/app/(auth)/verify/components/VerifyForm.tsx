@@ -10,6 +10,7 @@ import { getToken } from "@/config/toke";
 import { queryClient } from "@/api/QueryClient";
 import Cookies from "js-cookie";
 import { motion, AnimatePresence } from "framer-motion";
+import { DEMO_MODE, readDemoCode, rememberDemoCode } from "@/constants/demo";
 
 const VerifyForm = () => {
   const router = useRouter();
@@ -25,6 +26,8 @@ const VerifyForm = () => {
     code: otp.join("") || "",
   });
   const { resendEmail, isLoading: isResendEmailLoading } = useResendEmail();
+  const [demoCode, setDemoCode] = useState("");
+  useEffect(() => setDemoCode(readDemoCode()), []);
 
   const handleChange = (index: number, value: string) => {
     if (!/^\d*$/.test(value)) return; 
@@ -67,15 +70,18 @@ const VerifyForm = () => {
   const handleResendEmail = async () => {
     if (!disableResend && !isResendEmailLoading) {
       try {
-        await resendEmail();
-        showPopup("Verification email sent!", "success")
+        const res = await resendEmail();
+        if (res?.demoCode) {
+          rememberDemoCode(res.demoCode);
+          setDemoCode(res.demoCode);
+        }
+        showPopup(res?.demoCode ? "New code below (demo: no email sent)" : "Verification email sent!", "success")
         setDisableResend(true);
 
         setTimeout(() => {
           setDisableResend(false);
         }, 30000); 
-      } catch (error) {
-        console.log(error)
+      } catch {
         showPopup("Failed to resend email", "error")
       }
     }
@@ -84,7 +90,7 @@ const VerifyForm = () => {
   useEffect(() => {
     if (verificationData?.success) {
       queryClient.invalidateQueries({ queryKey: ["userDetails"] });
-      Cookies.set("verified", "true");
+      Cookies.set("verified", "true", { expires: 7, sameSite: "lax", secure: location.protocol === "https:" });
       router.push("/app/upload-resume");
     }
   }, [verificationData, router]);
@@ -116,6 +122,11 @@ const VerifyForm = () => {
       <div className="flex flex-col text-black space-y-2">
         <p className="text-sm font-light">We sent a verification code to:</p>
         <p className="text-sm font-medium">{data?.user.email}</p>
+        {DEMO_MODE && demoCode && (
+          <p role="status" className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            Demo mode: no email is sent. Your code is <span className="font-semibold tracking-widest">{demoCode}</span>
+          </p>
+        )}
       </div>
 
       <form className="bg-transparent w-full mt-4 max-w-md z-10" onSubmit={handleSubmit}>

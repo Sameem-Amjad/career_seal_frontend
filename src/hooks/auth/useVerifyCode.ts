@@ -20,7 +20,6 @@ const useVerifyCode = (formData: { email: string; code: string }): UseVerifyResp
     enabled: false, 
     retry: false,
   });
-  console.log("formdata: ",formData)
 
   const apiError: ApiError | undefined = isApiError(error)
     ? {

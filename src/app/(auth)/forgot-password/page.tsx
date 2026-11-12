@@ -21,8 +21,7 @@ export default function ForgotPassword() {
       showPopup("An email has been sent.", "success");
       setEmail("");
       reset();
-    } catch (err) {
-      console.log(err)
+    } catch {
       showPopup(error?.message || "Something went wrong!", "error");
     }
   };

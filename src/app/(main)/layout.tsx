@@ -26,7 +26,7 @@ export default function DashboardLayout({ children }: {children: ReactNode}) {
 
   useEffect(()=>{
     if(data){
-        Cookies.set('verified',data.user.isVerified.toString());
+        Cookies.set('verified', data.user.isVerified.toString(), { expires: 7, sameSite: "lax", secure: location.protocol === "https:" });
     }
     
   },[data])

@@ -31,8 +31,7 @@
 //       showPopup("Your password has been successfully reset! redirecting...", "success");
 //       router.push("/login");
 //     } catch (err) {
-//       console.log(err);
-//       showPopup(error?.message || "Something went wrong!", "error");
+// //       showPopup(error?.message || "Something went wrong!", "error");
 //     }
 //   };
 

@@ -12,8 +12,9 @@ export interface Job {
 
 export interface Proposal {
     _id: string;
-    job: Job;
+    job: JobData;
     status: string;
+    createdAt?: string;
 }
 export interface AllJobsResponse {
     success: boolean;
@@ -28,7 +29,7 @@ export interface AppliedJobsResponse {
 
 export interface savedJobsResponse {
     success: boolean;
-    savedJobs: Job[]
+    savedJobs: JobData[]
 }
 
 export interface saveJobResponse {
@@ -51,41 +52,29 @@ export interface Filters {
   }
   
 
-  interface JobIndustry {
-    job_industry_list: {
-      industry: string;
-    };
-  }
-  
+  /** A listing as the API returns it. */
   export interface JobData {
-    id: number;
-    created: string;
-    last_updated: string;
-    time_posted: string;
+    id: string;
+    _id: string;
     title: string;
     description: string;
+    company_name: string;
+    location: string;
+    region: string;
+    country: string;
+    industry: string;
     seniority: string;
     employment_type: string;
-    location: string;
-    url: string;
-    hash: string;
-    company_id: number;
-    company_name: string;
-    company_url: string;
-    external_url: string | null;
-    deleted: number;
-    application_active: number;
-    salary: string | null;
+    salary?: string;
+    visa: string;
+    housing_support: boolean;
+    tags: string[];
     applicants_count: string;
-    linkedin_job_id: number;
-    country: string;
-    redirected_url: string;
-    job_industry_collection: JobIndustry[];
-    job_functions_collection: string[];
+    time_posted: string;
   }
-  
- export interface JobDataResponse{
 
+ export interface JobDataResponse{
     success: boolean,
+    exact?: boolean,
     jobs: JobData[]
   }

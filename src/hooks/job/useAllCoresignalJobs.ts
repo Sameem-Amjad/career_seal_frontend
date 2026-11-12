@@ -6,18 +6,10 @@ import { getAllJobsCoresignal } from "@/api/coresignalApi";
 import { Filters, JobDataResponse } from "@/types/Interfaces/job";
 
 const useCoreSignalJobs = (filters: Filters) => {
-  const { data, isPending, isError, error,mutate } = useMutation<JobDataResponse, Error>({
+  const { data, isPending, isError, error, mutate } = useMutation<JobDataResponse, Error, Filters | undefined>({
     mutationKey: ["coreSignalJobs"],
-    mutationFn: () => getAllJobsCoresignal(filters),  
+    mutationFn: (override) => getAllJobsCoresignal(override || filters),
   });
-
-
-  // const { data, isLoading, isError, error, refetch } = useQuery<JobDataResponse, Error>({
-  //   queryKey: ['coreSignalJobs', filters], // Dynamic key based on filters
-  //   queryFn: () => getAllJobsCoresignal(filters), // Pass filters to the API call
-  //   retry: false,
-  //   enabled: !!filters, // Only run query if filters are provided
-  // });
 
   const apiError: ApiError | undefined = isApiError(error)
     ? {

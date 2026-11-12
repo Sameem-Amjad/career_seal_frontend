@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useId } from "react";
 
 interface DropdownInputProps {
   label?: string;
@@ -17,14 +17,16 @@ const DropdownInput: React.FC<DropdownInputProps> = ({
   selectedValue,
   onSelect,
 }) => {
+  const id = useId();
   const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     onSelect(e.target.value);
   };
 
   return (
     <div className="flex flex-col space-y-2">
-      {label && <label className="text-black text-lg font-semibold">{label}</label>}
+      {label && <label htmlFor={id} className="text-black text-lg font-semibold">{label}</label>}
       <select
+        id={id}
         value={selectedValue || ""}
         onChange={handleChange}
         className="bg-gray-100 text-sm rounded-lg p-3"

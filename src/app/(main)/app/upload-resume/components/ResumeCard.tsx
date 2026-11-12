@@ -1,242 +1,160 @@
 "use client";
-
 import React, { useRef, useState } from "react";
 import { FaLock } from "react-icons/fa";
+import axios from "axios";
 import DropdownInput from "./DropdownInput";
 import mammoth from "mammoth";
 import { getDocument, GlobalWorkerOptions, PDFPageProxy } from "pdfjs-dist";
-import Image from "next/image";
+import { suggestJobTitles } from "@/api/coresignalApi";
+import { POPULAR_ROLES, REGIONS } from "@/constants/roles";
 
-// Manually set worker source
 if (typeof window !== "undefined") {
   GlobalWorkerOptions.workerSrc = `/pdf.worker.min.mjs`;
 }
+
+const DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+const MAX_BYTES = 2 * 1024 * 1024;
 
 interface ResumeCardProps {
   industry: string;
   setIndustry: (value: string) => void;
   region: string;
   setRegion: (value: string) => void;
-  refetchJobs: () => void;
+  onSearch: (title?: string, location?: string) => void;
 }
 
-const ResumeCard: React.FC<ResumeCardProps> = ({
-  industry,
-  setIndustry,
-  region,
-  setRegion,
-  refetchJobs,
-}) => {
+const ResumeCard: React.FC<ResumeCardProps> = ({ industry, setIndustry, region, setRegion, onSearch }) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [jobTitles, setJobTitles] = useState<string[]>([]);
+  const [suggested, setSuggested] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
-  // eslint-disable-next-line  @typescript-eslint/no-explicit-any
-  const [selectedFile, setSelectedFile] = useState<any>();
-  const [fileName, setFileName] = useState<string>("Upload Your Resume"); // Default button text
-
-  const handleFileUpload = () => {
-    if (fileInputRef.current) {
-      fileInputRef.current.click();
-    }
-  };
-
-  const processFile = async (file: File) => {
-    setLoading(true);
-    handleFileChange(file);
-    setSelectedFile(file);
-    setFileName(file.name); // Update button text with file name
-
-    if (file.type === "application/pdf") {
-      const text = await extractTextFromPDF(file);
-      analyzeResume(text);
-    } else if (
-      file.type ===
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    ) {
-      const text = await extractTextFromDOCX(file);
-      analyzeResume(text);
-    } else {
-      alert("Unsupported file format. Please upload a PDF or DOCX.");
-    }
-    setLoading(false);
-  };
-
-  const handleFileChange = (file: File) => {
-    if (!file) return;
-
-    const allowedTypes = ["image/jpeg", "image/png", "application/pdf"];
-    if (!allowedTypes.includes(file.type)) {
-      alert("Only JPG, PNG, and PDF files are allowed.");
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      setSelectedFile({ type: file.type, dataURL: reader.result as string });
-    };
-
-    reader.readAsDataURL(file);
-  };
+  const [pdfPreview, setPdfPreview] = useState<string>("");
+  const [fileName, setFileName] = useState<string>("Upload Your Resume");
+  const [error, setError] = useState("");
+  const [note, setNote] = useState("");
+  const [dragging, setDragging] = useState(false);
 
   const extractTextFromPDF = async (file: File) => {
-    const arrayBuffer = await file.arrayBuffer();
-    const pdf = await getDocument({ data: arrayBuffer }).promise;
+    const pdf = await getDocument({ data: await file.arrayBuffer() }).promise;
     let text = "";
-
     for (let i = 1; i <= pdf.numPages; i++) {
       const page: PDFPageProxy = await pdf.getPage(i);
       const content = await page.getTextContent();
-      text +=
-        content.items
-          .map((item) => (item as { str: string }).str) // Explicitly type `item`
-          .join(" ") + " ";
+      text += content.items.map((item) => (item as { str: string }).str).join(" ") + " ";
     }
-
     return text;
   };
 
-  const extractTextFromDOCX = async (file: File) => {
-    const data = await file.arrayBuffer();
-    const result = await mammoth.extractRawText({ arrayBuffer: data });
-    return result.value;
-  };
+  const extractTextFromDOCX = async (file: File) => (await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() })).value;
 
-  const analyzeResume = async (resumeText: string) => {
-    const API_KEY = process.env.NEXT_PUBLIC_OPENAI_API_KEY;
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: "gpt-4",
-        messages: [
-          {
-            role: "system",
-            content:
-              "Extract potential job titles from the given resume text. Respond with a JSON array of job titles only.",
-          },
-          { role: "user", content: resumeText },
-        ],
-        temperature: 0.5,
-      }),
-    });
+  const processFile = async (file: File) => {
+    setError("");
+    setNote("");
+    const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+    const isDocx = file.type === DOCX || /\.docx$/i.test(file.name);
+    if (!isPdf && !isDocx) return setError("Please upload a PDF or DOCX file.");
+    if (file.size > MAX_BYTES) return setError("That file is over 2 MB. Please upload a smaller resume.");
 
-    const data = await response.json();
-    console.log("OpenAI response:", data);
-
-    if (data.choices?.[0]?.message?.content) {
-      let extractedTitles: string[] = [];
-
-      try {
-        extractedTitles = JSON.parse(data.choices[0].message.content);
-      } catch (error) {
-        console.error("Failed to parse JSON, processing as plain text:", error);
-
-        extractedTitles = data.choices[0].message.content
-          .split("\n")
-          .map((title: string) => title.trim().replace(/^["']|["']$/g, ""))
-          .filter((title: string) => title.length > 0);
+    setLoading(true);
+    setFileName(file.name);
+    setPdfPreview("");
+    try {
+      if (isPdf) {
+        const reader = new FileReader();
+        reader.onload = () => setPdfPreview(reader.result as string);
+        reader.readAsDataURL(file);
       }
-
-      setJobTitles(extractedTitles);
+      const text = isPdf ? await extractTextFromPDF(file) : await extractTextFromDOCX(file);
+      const { titles, source } = await suggestJobTitles(text);
+      setSuggested(titles);
+      setIndustry(titles[0]);
+      setNote(source === "gemini" ? "Suggested by AI from your resume." : "Matched from the skills in your resume.");
+      onSearch(titles[0], region);
+    } catch (err) {
+      setError(axios.isAxiosError(err) ? err.response?.data?.message || "We couldn't analyse that resume. Please try again." : "We couldn't read that file. Is it a text-based PDF or DOCX?");
+    } finally {
+      setLoading(false);
     }
   };
 
+  const options = [...suggested, ...POPULAR_ROLES.filter((r) => !suggested.includes(r))];
+
   return (
-    <div className="p-8 border-2 border-custom-blue bg-white bg-opacity-65 rounded-[50px] w-full">
+    <div className="p-6 lg:p-8 border-2 border-custom-blue bg-white bg-opacity-65 rounded-[50px] w-full">
       <div className="flex flex-col space-y-5 justify-between min-h-[500px] w-full">
-        <p className="text-2xl font-semibold">Upload Your Resume</p>
-        <div className="w-full bg-gray-100 p-2 rounded-xl flex">
-          <div className="w-full flex-1 border bg-gray-50 px-16 py-6 flex flex-col items-center justify-center space-y-3 rounded-lg border-green-500 border-dashed">
+        <h2 className="text-2xl font-semibold">Upload Your Resume</h2>
+        <div className="w-full bg-gray-100 p-2 rounded-xl flex flex-col md:flex-row gap-3">
+          <div
+            onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragging(false);
+              const file = e.dataTransfer.files?.[0];
+              if (file) processFile(file);
+            }}
+            className={`w-full flex-1 border bg-gray-50 px-6 md:px-16 py-6 flex flex-col items-center justify-center space-y-3 rounded-lg border-dashed ${dragging ? "border-custom-blue bg-blue-50" : "border-green-500"}`}
+          >
             <p className="text-sm text-center text-gray-700">
-              Drop your resume here or choose a file. PDF & DOCX only. Max 2MB
-              file size.
+              Drop your resume here or choose a file. PDF &amp; DOCX only. Max 2MB file size.
             </p>
             <button
-              onClick={handleFileUpload}
-              className="p-2 bg-custom-blue rounded-full text-sm hover:scale-95 transition duration-200 text-white w-44 text-center truncate"
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={loading}
+              className="p-2 bg-custom-blue rounded-full text-sm hover:scale-95 transition duration-200 text-white w-48 text-center truncate disabled:opacity-70"
             >
-              {loading
-                ? "Loading..."
-                : fileName.length > 25
-                ? `${fileName.slice(0, 22)}...`
-                : fileName}
+              {loading ? "Analysing…" : fileName.length > 25 ? `${fileName.slice(0, 22)}...` : fileName}
             </button>
             <input
               type="file"
               ref={fileInputRef}
-              accept=".pdf,.docx"
-              style={{ display: "none" }}
+              accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              aria-label="Resume file"
+              className="hidden"
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (file) processFile(file);
+                e.target.value = "";
               }}
             />
             <p className="text-xs text-gray-700 flex w-full items-center justify-center font-semibold space-x-2">
-              <FaLock />
+              <FaLock aria-hidden />
               <span> Privacy Guaranteed </span>
             </p>
           </div>
-          {selectedFile && (
-            <div className="flex-1 px-10">
-              {selectedFile && selectedFile.type.startsWith("image/") && (
-                <Image
-                  src={selectedFile.dataURL}
-                  alt="Resume Preview"
-                  width={300}
-                  height={400}
-                  className="rounded-lg shadow-md"
-                />
-              )}
-
-              {/* {selectedFile && selectedFile.type === "application/pdf" && (
-                <iframe
-                  src={selectedFile.dataURL}
-                  width="100%"
-                  height="200px"
-                  className="w-1/2 h-[200px]"
-                  style={{ objectFit: "contain", border: "1px solid #ddd" }}
-                ></iframe>
-              )} */}
-
-              {selectedFile && selectedFile.type === "application/pdf" && (
-                <div className="w-full flex justify-center border no-scrollbar rounded-md overflow-hidden relative">
-                  <embed
-                    src={selectedFile.dataURL}
-                    type="application/pdf"
-                    className="w-full  no-scrollbar"
-                    style={{
-                      height: "200px",
-                    }}
-                  />
-                </div>
-              )}
+          {pdfPreview && (
+            <div className="flex-1 md:px-6">
+              <embed src={pdfPreview} type="application/pdf" className="w-full rounded-md border" style={{ height: "200px" }} />
             </div>
           )}
         </div>
+        {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
+        {note && !error && (
+          <p role="status" className="text-sm text-green-700">
+            {note} Best match: <span className="font-semibold">{suggested[0]}</span>
+            {suggested.length > 1 ? `, also ${suggested.slice(1).join(", ")}` : ""}.
+          </p>
+        )}
 
         <DropdownInput
           label="Select Industry"
-          placeholder="Choose an industry"
-          options={jobTitles}
+          placeholder="Choose a role"
+          options={options}
           selectedValue={industry}
           onSelect={setIndustry}
         />
 
-        {/* Region Dropdown */}
         <DropdownInput
           label="Select Region"
           placeholder="Choose a region"
-          options={["United Kingdom", "America", "United Arab Emirates"]}
+          options={REGIONS}
           selectedValue={region}
           onSelect={setRegion}
         />
 
-        {/* Search Button */}
         <button
-          onClick={refetchJobs}
+          type="button"
+          onClick={() => onSearch(industry, region)}
           className="p-2 py-4 mt-12 bg-custom-blue rounded-full text-sm hover:bg-opacity-80 transition duration-200 text-white w-full"
         >
           Search

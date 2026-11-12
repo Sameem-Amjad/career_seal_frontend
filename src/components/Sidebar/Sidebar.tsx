@@ -52,7 +52,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar }) => {
             </Link>
           </li>
           <li>
-            <Link href="/upload-resume" className="text-black font-medium" onClick={toggleSidebar}>
+            <Link href="/app/upload-resume" className="text-black font-medium" onClick={toggleSidebar}>
               Jobs
             </Link>
           </li>
@@ -62,7 +62,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar }) => {
             </Link>
           </li>
           <li>
-            <Link href="/upload-resume" className="text-black font-medium" onClick={toggleSidebar}>
+            <Link href="/contact" className="text-black font-medium" onClick={toggleSidebar}>
               Contact
             </Link>
           </li>

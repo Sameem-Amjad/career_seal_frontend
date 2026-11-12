@@ -5,7 +5,7 @@ import { ApiError, updatePasswordResponse } from "@/types/Interfaces/auth";
 import { resendEmail } from "@/api/authApi";
 
 interface UseResendEmailResponse {
-  resendEmail: () => Promise<void>;
+  resendEmail: () => Promise<{ demoCode?: string; message?: string }>;
   isLoading: boolean;
   isError: boolean;
   error?: ApiError;
@@ -25,9 +25,7 @@ const useResendEmail = (): UseResendEmailResponse => {
     : undefined;
 
   return {
-    resendEmail: async () => {
-      await resendEmailMutation.mutateAsync();
-    },
+    resendEmail: async () => (await resendEmailMutation.mutateAsync()) as { demoCode?: string; message?: string },
     isLoading: resendEmailMutation.isPending,
     isError: resendEmailMutation.isError,
     error: resendEmailError,

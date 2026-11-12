@@ -4,33 +4,28 @@ import { getToken } from "@/config/toke";
 import { useRouter } from "next/navigation";
 
 import axios from "axios";
-import useGetUserDetails from "@/hooks/auth/useGetUserDetails";
+import { startFreeTrial } from "@/api/paymentApi";
 
 const TrialSection = () => {
   const router = useRouter();
   const token = getToken();
   const [loading, setLoading] = useState(false);
-  const { data: userData } = useGetUserDetails(token || "");
+
+  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
 
   const handleCheckout = async () => {
-    if (!userData?.user._id) {
+    if (!token) {
       router.push("/login");
       return;
     }
     setLoading(true);
+    setMessage(null);
     try {
-      const response = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/payment/free-trial/start`,
-        {
-          userId: userData?.user._id,
-        }
-      );
-      setLoading(false);
-      router.push("/app/upload-resume")
-      console.log("respnse data for free trial is : ", response);
-    } catch (error) {
-      console.error("Error initiating checkout:", error);
-      alert("Something went wrong. Please try again.");
+      const res = await startFreeTrial();
+      setMessage({ ok: true, text: res.message });
+      setTimeout(() => router.push("/app/upload-resume"), 1200);
+    } catch (err) {
+      setMessage({ ok: false, text: axios.isAxiosError(err) ? err.response?.data?.message || "Something went wrong. Please try again." : "Something went wrong. Please try again." });
     }
     setLoading(false);
   };
@@ -51,6 +46,7 @@ const TrialSection = () => {
         >
           {loading ? "Loading..." : "Start Free Trial"}
         </button>
+        {message && <p role="status" className={`text-sm lg:text-base ${message.ok ? "text-green-700" : "text-red-600"}`}>{message.text}</p>}
       </div>
     </div>
   );

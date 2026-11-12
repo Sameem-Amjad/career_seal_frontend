@@ -1,6 +1,8 @@
 "use client";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import axios from "axios";
+import { startCheckout } from "@/api/paymentApi";
+import { DEMO_MODE } from "@/constants/demo";
 import Feature from "./Feature";
 import useGetUserDetails from "@/hooks/auth/useGetUserDetails";
 
@@ -23,30 +25,29 @@ const PricingCard: React.FC<PricingCardProps> = ({
   includedFeatures,
 }) => {
   const router = useRouter();
-  const token = getToken();
+  // Read the login cookie after hydration, so the server and browser render the same first.
+  const [token, setToken] = useState<string | undefined>();
+  useEffect(() => setToken(getToken()), []);
   const { data: userData } = useGetUserDetails(token || "");
 
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const current = (userData?.user as { subscription?: { plan?: string; status?: string } } | undefined)?.subscription;
+  const isCurrent = Boolean(current && ["active", "trialing"].includes(current.status || "") && `${current.plan} Plan` === title);
+
   const handleCheckout = async () => {
-    if (!userData?.user._id) {
+    if (!token) {
       router.push("/login");
       return;
     }
-
+    setBusy(true);
+    setError("");
     try {
-      const { data } = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/payment/create-checkout-session`,
-        {
-          priceId,
-          userId: userData?.user._id,
-        }
-      );
-
-      if (data.success) {
-        router.push(data.sessionUrl);
-      }
-    } catch (error) {
-      console.error("Error initiating checkout:", error);
-      alert("Something went wrong. Please try again.");
+      const data = await startCheckout(priceId);
+      window.location.assign(data.sessionUrl);
+    } catch (err) {
+      setError(axios.isAxiosError(err) ? err.response?.data?.message || "Something went wrong. Please try again." : "Something went wrong. Please try again.");
+      setBusy(false);
     }
   };
 
@@ -82,10 +83,12 @@ const PricingCard: React.FC<PricingCardProps> = ({
       <button
         className="mt-4 bg-custom-blue rounded-xl w-full hover:bg-opacity-80 transition duration-200 text-white font-bold py-2 px-4 disabled:bg-gray-400 disabled:cursor-not-allowed"
         onClick={handleCheckout}
-        disabled={!userData}
+        disabled={busy || isCurrent}
       >
-        Choose
+        {isCurrent ? "Current plan" : busy ? "Starting checkout…" : token ? "Choose" : "Log in to choose"}
       </button>
+      {DEMO_MODE && !isCurrent && <p className="mt-2 text-center text-xs text-gray-600">Demo: checkout is simulated, no card is charged.</p>}
+      {error && <p role="alert" className="mt-2 text-center text-sm text-red-600">{error}</p>}
     </div>
   );
 };

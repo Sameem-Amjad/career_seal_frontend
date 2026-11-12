@@ -8,8 +8,19 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 import { FaEdit } from "react-icons/fa";
 
-const CLOUDINARY_CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME!;
-const CLOUDINARY_UPLOAD_PRESET = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET!;
+/** Shrink a picture to at most 256 px and return it as a JPEG data URL. */
+async function toAvatar(file: File): Promise<string> {
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, 256 / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(bitmap.width * scale);
+  canvas.height = Math.round(bitmap.height * scale);
+  canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL("image/jpeg", 0.85);
+}
+
+const errorText = (err: unknown, fallback: string) =>
+  (err as { response?: { data?: { message?: string } } })?.response?.data?.message || fallback;
 
 function Profile() {
   const [username, setUsername] = useState("");
@@ -27,39 +38,30 @@ function Profile() {
   });
   const [selectedImage, setSelectedImage] = useState<string | null>();
 
+  const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
   const handleImageChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) {
-      const imageUrl = URL.createObjectURL(file);
-      setSelectedImage(imageUrl);
-    
-
-
-    // Upload to Cloudinary
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
-
+    event.target.value = "";
+    if (!file) return;
+    if (!/^image\/(png|jpeg|webp)$/.test(file.type)) {
+      setStatus({ ok: false, text: "Use a PNG, JPG or WebP picture." });
+      return;
+    }
     try {
       setUploading(true);
-      const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
-        method: "POST",
-        body: formData,
-      });
-
-      const data = await response.json();
-      if (data.secure_url) {
-        await updateUserDetails({ image: data.secure_url });
-        alert("Profile updated successfully!"); // Update profile picture to the uploaded image URL
-        setSelectedImage(null);
-      }
-    } catch (error) {
-      console.error("Error uploading image:", error);
+      const image = await toAvatar(file);
+      setSelectedImage(image);
+      await updateUserDetails({ image });
+      setProfileImage(image);
+      setStatus({ ok: true, text: "Profile picture updated." });
+    } catch (err) {
+      setSelectedImage(null);
+      setStatus({ ok: false, text: errorText(err, "Couldn't update your picture.") });
     } finally {
       setUploading(false);
     }
-  }
   };
+
   const { data } = useGetUserDetails(getToken() || "");
   const { updateUserDetails } = useUpdateUserDetails()
   const { updatePassword, isLoading, isError, error, reset} = useUpdatePassword();
@@ -76,21 +78,22 @@ function Profile() {
     try {
       if (showPasswordFields) {
         if (!oldPassword || !password || !confirmPassword) {
-          alert("Please fill all password fields.");
+          setStatus({ ok: false, text: "Please fill all password fields." });
           return;
         }
         if (password !== confirmPassword) {
-          alert("Passwords do not match!");
+          setStatus({ ok: false, text: "Passwords do not match." });
           return;
         }
 
         await updatePassword({oldPassword, newPassword:password})
-        alert("Password Updated Successfully")
+        setStatus({ ok: true, text: "Password updated." });
         reset(); 
       } else {
         // Call update user details API
         await updateUserDetails({ username });
-        alert("Profile updated successfully!");
+        setOriginalData((d) => ({ ...d, username }));
+        setStatus({ ok: true, text: "Profile updated." });
       }
   
       setShowPasswordFields(false);
@@ -99,8 +102,7 @@ function Profile() {
       setOldPassword("");
   
     } catch (error) {
-      console.log(error);
-      alert("Failed to update profile. Please try again.");
+      setStatus({ ok: false, text: errorText(error, "Failed to update profile. Please try again.") });
     }
   };
   
@@ -251,12 +253,15 @@ function Profile() {
               Discard
             </button>
             <button
-              disabled={!isTextChanged || selectedImage=="" || uploading}
+              disabled={(!isTextChanged && !showPasswordFields) || uploading}
               onClick={handleUpdate}
-              className="px-4 py-2 bg-custom-blue rounded-full text-white hover:bg-opacity-80 transition"
+              className="px-4 py-2 bg-custom-blue rounded-full text-white hover:bg-opacity-80 transition disabled:opacity-60"
             >
               {isLoading?"updating...": "update"}
             </button>
+            {status && (
+              <p role="status" className={`text-sm text-center ${status.ok ? "text-green-700" : "text-red-600"}`}>{status.text}</p>
+            )}
           </div>
         </div>
       </div>

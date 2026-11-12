@@ -1,61 +1,63 @@
 "use client";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useEffect, useState, Suspense } from "react";
-import axios from "axios";
+import Link from "next/link";
+import { CheckoutDetails, getCheckoutSession } from "@/api/paymentApi";
+import { queryClient } from "@/api/QueryClient";
 
-interface PaymentDetails {
-  amount_total: number;
-  payment_status: string;
-  customer_details: {
-    email: string;
-  };
-}
-
-// Move the main logic to a separate component
 function SuccessContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const sessionId = searchParams.get("session_id");
   const [loading, setLoading] = useState(true);
-  const [paymentDetails, setPaymentDetails] = useState<PaymentDetails | null>(null);
+  const [details, setDetails] = useState<CheckoutDetails | null>(null);
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
-    if (sessionId) {
-      axios
-        .get(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/payment/checkout-session/${sessionId}`)
-        .then(({ data }) => {
-          setPaymentDetails(data.session);
-          setLoading(false);
-
-          setTimeout(() => {
-            router.push("/app/profile");
-          }, 5000);
-        })
-        .catch((error) => {
-          console.error("Error fetching session details:", error);
-          setLoading(false);
-        });
+    if (!sessionId) {
+      setLoading(false);
+      setFailed(true);
+      return;
     }
+    getCheckoutSession(sessionId)
+      .then(({ session }) => {
+        setDetails(session);
+        queryClient.invalidateQueries({ queryKey: ["userDetails"] });
+        setTimeout(() => router.push("/app/profile"), 6000);
+      })
+      .catch(() => setFailed(true))
+      .finally(() => setLoading(false));
   }, [sessionId, router]);
 
-  if (loading) return <p>Loading...</p>;
+  if (loading) return <p className="p-10 text-center text-black">Loading payment details…</p>;
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen text-black">
-      <h1 className="text-3xl font-bold">Payment Successful!</h1>
-      {paymentDetails && (
-        <div className="mt-4 p-4 border rounded-lg shadow-md">
-          <p><strong>Amount Paid:</strong> ${paymentDetails.amount_total / 100}</p>
-          <p><strong>Status:</strong> {paymentDetails.payment_status}</p>
-          <p><strong>Email:</strong> {paymentDetails.customer_details.email}</p>
-        </div>
+    <div className="flex flex-col items-center justify-center min-h-screen text-black p-6">
+      {failed || !details ? (
+        <>
+          <h1 className="text-3xl font-bold">We couldn&apos;t find that payment</h1>
+          <Link href="/pricing" className="mt-4 text-custom-blue underline">Back to pricing</Link>
+        </>
+      ) : (
+        <>
+          <h1 className="text-3xl font-bold">Payment Successful!</h1>
+          <div className="mt-4 p-5 border rounded-lg shadow-md space-y-1 bg-white">
+            {details.plan && <p><strong>Plan:</strong> {details.plan}</p>}
+            <p><strong>Amount Paid:</strong> ${(details.amount_total / 100).toFixed(2)}</p>
+            <p><strong>Status:</strong> {details.payment_status}</p>
+            <p><strong>Email:</strong> {details.customer_details.email}</p>
+            {details.current_period_end && (
+              <p><strong>Renews:</strong> {new Date(details.current_period_end).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}</p>
+            )}
+          </div>
+          {details.demo && <p className="mt-3 text-sm text-amber-800">Demo checkout: no card was charged.</p>}
+          <p className="mt-4 text-gray-600">Taking you to your profile…</p>
+        </>
       )}
-      <p className="mt-4 text-gray-600">Redirecting to profile page...</p>
     </div>
   );
 }
 
-// Wrap the content component with Suspense
 export default function SuccessPage() {
   return (
     <Suspense fallback={<div>Loading payment details...</div>}>

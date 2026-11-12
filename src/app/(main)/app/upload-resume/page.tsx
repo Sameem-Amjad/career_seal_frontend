@@ -4,21 +4,37 @@ import JobCard from "./components/JobCard";
 import ResumeCard from "./components/ResumeCard";
 import UserReviews from "@/components/UserReviews/UserReviews";
 import useCoreSignalJobs from "@/hooks/job/useAllCoresignalJobs";
+import useSavedJobs from "@/hooks/job/useSavedJobs";
+import useAppliedJobs from "@/hooks/job/useAppliedJobs";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 function UploadResume() {
-  // Lift state to control filters
   const [industry, setIndustry] = useState<string>("Software Engineer");
-  const [region, setRegion] = useState<string>("UK");
+  const [region, setRegion] = useState<string>("United Kingdom");
 
-  // Fetch job data based on filters
   const { data, isLoading, isError, error, mutate } = useCoreSignalJobs({
     title: industry,
     location: region,
     application_active: true,
     deleted: false,
   });
+  const { data: savedData } = useSavedJobs();
+  const { data: appliedData } = useAppliedJobs();
+  const savedIds = new Set((savedData?.savedJobs || []).map((j) => j.id || j._id));
+  const appliedIds = new Set((appliedData?.proposals || []).map((p) => p.job?.id || p.job?._id));
+
+  const [searched, setSearched] = useState({ title: industry, location: region });
+  const search = (title = industry, location = region) => {
+    setSearched({ title, location });
+    mutate({ title, location, application_active: true, deleted: false });
+  };
+
+  // Show listings for the default role straight away.
+  useEffect(() => {
+    search();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div
@@ -30,46 +46,44 @@ function UploadResume() {
     >
       <div className="max-w-screen-lg font-poppins mx-auto flex flex-col text-black items-center p-4 space-y-4 pt-32">
         <div className="max-w-screen-md w-full mx-auto">
-          <p className="text-3xl font-bold text-center">
+          <h1 className="text-3xl font-bold text-center">
             Upload Your Resume and Discover Tailored Opportunities!
-          </p>
+          </h1>
           <p className="text-lg font-normal text-center text-gray-600">
             Our AI-driven tool connects your skills and experience with
             personalized job matches in seconds.
           </p>
         </div>
 
-        {/* ResumeCard will update industry and region */}
         <div className="pt-4 lg:pt-10 w-full mx-auto">
           <ResumeCard
             industry={industry}
             setIndustry={setIndustry}
             region={region}
             setRegion={setRegion}
-            refetchJobs={mutate}
+            onSearch={search}
           />
         </div>
 
-        <div className="flex flex-col w-full items-center space-y-10 justify-center pt-10">
-          <p className="text-3xl font-bold text-center">Job Listings</p>
+        <section className="flex flex-col w-full items-center space-y-6 justify-center pt-10" aria-live="polite">
+          <h2 className="text-3xl font-bold text-center">Job Listings</h2>
+          {data && !isLoading && (
+            <p className="text-sm text-gray-600">
+              {data.exact === false
+                ? `No ${searched.title} roles in ${searched.location} right now. Here are other visa-sponsored jobs there.`
+                : `${data.jobs.length} visa-sponsored ${data.jobs.length === 1 ? "job" : "jobs"} for ${searched.title} in ${searched.location}`}
+            </p>
+          )}
 
           {isLoading && <p>Loading job listings...</p>}
           {isError && <p className="text-red-500">Error: {error?.message}</p>}
 
           {data && data.jobs?.length > 0
             ? data.jobs.map((job) => (
-                <JobCard
-                  key={job.id}
-                  title={job.title}
-                  jobId={job.id.toString()}
-                  description={job.description}
-                  tags={["IT", "Software Engineer"]}
-                  proposalSettings={job.applicants_count}
-                  redirecUrl={job.url}
-                />
+                <JobCard key={job.id} job={job} saved={savedIds.has(job.id)} applied={appliedIds.has(job.id)} />
               ))
-            : !isLoading && <p>No jobs found.</p>}
-        </div>
+            : !isLoading && data && <p>No jobs found.</p>}
+        </section>
       </div>
       <UserReviews />
     </div>

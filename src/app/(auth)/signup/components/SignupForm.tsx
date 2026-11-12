@@ -8,6 +8,7 @@ import Cookies from "js-cookie";
 import useSignup from "@/hooks/auth/useSignup";
 import useGetUserDetails from "@/hooks/auth/useGetUserDetails";
 import { getToken } from "@/config/toke";
+import { rememberDemoCode } from "@/constants/demo";
 
 interface FormData {
   email: string;
@@ -43,11 +44,11 @@ const SignupForm = () => {
   useEffect(()=>{
     const signupQueryWrapper = async () =>{
       if (data?.token && !isLoading) {
-        Cookies.set('token', data.token, { expires: 7 });
+        rememberDemoCode((data as { demoCode?: string }).demoCode);
+        Cookies.set('token', data.token, { expires: 7, sameSite: "lax", secure: location.protocol === "https:" });
+        Cookies.set('verified', 'false', { expires: 7, sameSite: "lax", secure: location.protocol === "https:" });
         await myRefetch()
         router.push(`/verify`)
-      } else {
-        console.log("Token is missing in the signup response.");
       }
     }
     signupQueryWrapper()
@@ -55,9 +56,7 @@ const SignupForm = () => {
 
 
 
-  const handleGoogleSignIn = () => {
-    console.log("google sign in");
-  };
+  const handleGoogleSignIn = () => {};
 
   return (
     <div className="w-96 font-poppins p-2">
