@@ -39,15 +39,17 @@ const JobCard: React.FC<JobCardProps> = ({ job, saved = false, applied = false, 
   const [isSaved, setIsSaved] = useState(saved);
   const [isApplied, setIsApplied] = useState(applied);
   const [open, setOpen] = useState(false);
-  const [busy, setBusy] = useState<"save" | "apply" | null>(null);
+  // Separate flags so Auto Apply still works while a save is in flight.
+  const [saving, setSaving] = useState(false);
+  const [applying, setApplying] = useState(false);
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => setIsSaved(saved), [saved]);
   useEffect(() => setIsApplied(applied), [applied]);
 
   const toggleSave = async () => {
-    if (busy) return;
-    setBusy("save");
+    if (saving) return;
+    setSaving(true);
     const next = !isSaved;
     setIsSaved(next);
     try {
@@ -58,13 +60,13 @@ const JobCard: React.FC<JobCardProps> = ({ job, saved = false, applied = false, 
       setIsSaved(!next);
       setNotice({ ok: false, text: messageOf(err, "Couldn't update your saved jobs") });
     } finally {
-      setBusy(null);
+      setSaving(false);
     }
   };
 
   const apply = async () => {
-    if (busy || isApplied) return;
-    setBusy("apply");
+    if (applying || isApplied) return;
+    setApplying(true);
     try {
       const res = await applyJob(job.id);
       setIsApplied(true);
@@ -73,7 +75,7 @@ const JobCard: React.FC<JobCardProps> = ({ job, saved = false, applied = false, 
     } catch (err) {
       setNotice({ ok: false, text: messageOf(err, "Couldn't apply. Please try again.") });
     } finally {
-      setBusy(null);
+      setApplying(false);
     }
   };
 
@@ -101,7 +103,7 @@ const JobCard: React.FC<JobCardProps> = ({ job, saved = false, applied = false, 
           <button
             type="button"
             onClick={toggleSave}
-            disabled={busy === "save"}
+            disabled={saving}
             aria-pressed={isSaved}
             aria-label={isSaved ? "Remove from saved jobs" : "Save job"}
             className="hover:scale-105 transition duration-200 disabled:opacity-60"
@@ -147,10 +149,10 @@ const JobCard: React.FC<JobCardProps> = ({ job, saved = false, applied = false, 
           <button
             type="button"
             onClick={apply}
-            disabled={isApplied || busy === "apply"}
+            disabled={isApplied || applying}
             className={`px-4 py-2 rounded-full text-sm transition duration-200 text-white w-32 ${isApplied ? "bg-gray-400" : "bg-custom-blue hover:scale-95"} disabled:cursor-default`}
           >
-            {busy === "apply" ? "Applying…" : isApplied ? "Applied" : "Auto Apply"}
+            {applying ? "Applying…" : isApplied ? "Applied" : "Auto Apply"}
           </button>
         </div>
       </div>
