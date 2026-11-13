@@ -2,7 +2,6 @@
 import Images from "@/constants/Images";
 import JobCard from "./components/JobCard";
 import ResumeCard from "./components/ResumeCard";
-import UserReviews from "@/components/UserReviews/UserReviews";
 import useCoreSignalJobs from "@/hooks/job/useAllCoresignalJobs";
 import useSavedJobs from "@/hooks/job/useSavedJobs";
 import useAppliedJobs from "@/hooks/job/useAppliedJobs";
@@ -85,7 +84,6 @@ function UploadResume() {
             : !isLoading && data && <p>No jobs found.</p>}
         </section>
       </div>
-      <UserReviews />
     </div>
   );
 }
